@@ -4,11 +4,17 @@
 
 import UIKit
 
+protocol ItemsService {
+    func loadItems(completion: @escaping (Result<[ItemViewModel], Error>) -> Void)
+}
+
 class ListViewController: UITableViewController {
     
     // MARK: - Instance Properties
 	var items = [ItemViewModel]()
-	
+    
+    var service: ItemsService?
+    
 	var retryCount = 0
 	var maxRetryCount = 0
 	var shouldRetry = false
@@ -27,15 +33,7 @@ class ListViewController: UITableViewController {
 		refreshControl = UIRefreshControl()
 		refreshControl?.addTarget(self, action: #selector(refresh), for: .valueChanged)
 		
-		if fromFriendsScreen {
-			shouldRetry = true
-			maxRetryCount = 2
-			
-			title = "Friends"
-			
-			navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(addFriend))
-			
-		} else if fromCardsScreen {
+		if fromCardsScreen {
 			shouldRetry = false
 			
 			title = "Cards"
@@ -69,43 +67,30 @@ class ListViewController: UITableViewController {
 	}
 	
     // MARK: - Refresh
-	@objc private func refresh() {
-		refreshControl?.beginRefreshing()
-		if fromFriendsScreen {
-			FriendsAPI.shared.loadFriends { [weak self] result in
-				DispatchQueue.mainAsyncIfNeeded {
+    @objc private func refresh() {
+        refreshControl?.beginRefreshing()
+        if fromFriendsScreen {
+            service?.loadItems(completion: handleAPIResult)
+            
+        } else if fromCardsScreen {
+            CardAPI.shared.loadCards { [weak self] result in
+                DispatchQueue.mainAsyncIfNeeded {
                     self?.handleAPIResult(result.map({ items in
-                        if User.shared?.isPremium == true {
-                            (UIApplication.shared.connectedScenes.first?.delegate as! SceneDelegate).cache.save(items)
-                        }
-                        
-                        return items.map { item in
-                            ItemViewModel(friend: item) {
-                                self?.select(friend: item)
-                            }
-                        }
-                    }))
-				}
-			}
-		} else if fromCardsScreen {
-			CardAPI.shared.loadCards { [weak self] result in
-				DispatchQueue.mainAsyncIfNeeded {
-					self?.handleAPIResult(result.map({ items in
                         items.map { item in
                             ItemViewModel(card: item) {
                                 self?.select(card: item)
                             }
                         }
                     }))
-				}
-			}
+                }
+            }
         } else if fromSentTransfersScreen || fromReceivedTransfersScreen {
             TransfersAPI.shared.loadTransfers { [weak self, longDateStyle, fromSentTransfersScreen] result in
                 DispatchQueue.mainAsyncIfNeeded {
                     self?.handleAPIResult(result.map { items in
                         
                         items.filter { fromSentTransfersScreen ? $0.isSender : !$0.isSender}
-                            .map { item in
+                        .map { item in
                             ItemViewModel(transfer: item, longDateStyle: longDateStyle) {
                                 self?.select(transfer: item)
                             }
@@ -114,9 +99,9 @@ class ListViewController: UITableViewController {
                 }
             }
         } else {
-			fatalError("unknown context")
-		}
-	}
+            fatalError("unknown context")
+        }
+    }
 	
     // MARK: - HandleAPIResult
 	private func handleAPIResult(_ result: Result<[ItemViewModel], Error>) {
