@@ -5,6 +5,8 @@
 import UIKit
 
 class ListViewController: UITableViewController {
+    
+    // MARK: - Instance Properties
 	var items = [ItemViewModel]()
 	
 	var retryCount = 0
@@ -18,6 +20,7 @@ class ListViewController: UITableViewController {
 	var fromCardsScreen = false
 	var fromFriendsScreen = false
 	
+    // MARK: - Instance Methods
 	override func viewDidLoad() {
 		super.viewDidLoad()
 		
@@ -65,6 +68,7 @@ class ListViewController: UITableViewController {
 		}
 	}
 	
+    // MARK: - Refresh
 	@objc private func refresh() {
 		refreshControl?.beginRefreshing()
 		if fromFriendsScreen {
@@ -114,6 +118,7 @@ class ListViewController: UITableViewController {
 		}
 	}
 	
+    // MARK: - HandleAPIResult
 	private func handleAPIResult(_ result: Result<[ItemViewModel], Error>) {
 		switch result {
 		case let .success(items):
@@ -182,6 +187,7 @@ class ListViewController: UITableViewController {
     }
 }
 
+// MARK: - ItemViewModel
 struct ItemViewModel {
     let title: String
     let subtitle: String
@@ -240,6 +246,7 @@ extension ItemViewModel {
     }
 }
 
+// MARK: - UITableViewCell extensions
 extension UITableViewCell {
 	func configure(_ vm: ItemViewModel) {
 
@@ -248,6 +255,7 @@ extension UITableViewCell {
 	}
 }
 
+// MARK: - UIViewController extensions
 extension UIViewController {
     func select(friend: Friend) {
         let vc = FriendDetailsViewController()
