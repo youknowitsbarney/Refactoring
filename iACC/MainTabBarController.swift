@@ -66,8 +66,8 @@ class MainTabBarController: UITabBarController {
         
         vc.service = FriendsAPIItemsServiceAdapter(api: FriendsAPI.shared,
                                                    cache: isPremium ? friendsCache: NullFriendsCache(),
-                                                select: { friend in
-            vc.select(friend: friend)
+                                                select: { [weak vc] friend in
+            vc?.select(friend: friend)
         })
 		return vc
 	}
@@ -75,12 +75,35 @@ class MainTabBarController: UITabBarController {
 	private func makeSentTransfersList() -> ListViewController {
 		let vc = ListViewController()
 		vc.fromSentTransfersScreen = true
+        vc.shouldRetry = true
+        vc.maxRetryCount = 1
+//        vc.longDateStyle = true (always same as fromSentTransfersScreen)
+        vc.navigationItem.title = "Sent"
+        vc.navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Send", style: .done, target: vc, action: #selector(sendMoney))
+        
+        vc.service = TransfersAPIItemsServiceAdapter(api: TransfersAPI.shared,
+                                                     fromSentTransfersScreen: true,
+                                                     select: { [weak vc] transfer in
+            vc?.select(transfer: transfer)
+        })
 		return vc
 	}
 	
 	private func makeReceivedTransfersList() -> ListViewController {
 		let vc = ListViewController()
 		vc.fromReceivedTransfersScreen = true
+        vc.shouldRetry = true
+        vc.maxRetryCount = 1
+//        vc.longDateStyle = false (always same as fromSentTransfersScreen)
+        vc.navigationItem.title = "Received"
+        vc.navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Request", style: .done, target: vc, action: #selector(requestMoney))
+        
+        vc.service = TransfersAPIItemsServiceAdapter(api: TransfersAPI.shared,
+                                                     fromSentTransfersScreen: false,
+                                                     select: { [weak vc] transfer in
+            vc?.select(transfer: transfer)
+        })
+        
 		return vc
 	}
 	
@@ -90,8 +113,8 @@ class MainTabBarController: UITabBarController {
         vc.shouldRetry = false
         vc.title = "Cards"
         vc.navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add, target: vc, action: #selector(addCard))
-        vc.service = CardAPIItemsServiceAdapter(api: CardAPI.shared, select: { card in
-            vc.select(card: card)
+        vc.service = CardAPIItemsServiceAdapter(api: CardAPI.shared, select: { [weak vc] card in
+            vc?.select(card: card)
         })
 		return vc
 	}
@@ -102,7 +125,6 @@ class MainTabBarController: UITabBarController {
 struct FriendsAPIItemsServiceAdapter: ItemsService {
     let api: FriendsAPI
     let cache: FriendsCache
-//    let isPremium: Bool //or inject user
     let select: (Friend) -> Void
     
     func loadItems(completion: @escaping (Result<[ItemViewModel], Error>) -> Void) {
@@ -133,6 +155,30 @@ struct CardAPIItemsServiceAdapter: ItemsService {
                 completion(result.map{ items in
                     items.map { item in
                         ItemViewModel(card: item) {
+                            select(item)
+                        }
+                    }
+                })
+            }
+        }
+    }
+}
+
+struct TransfersAPIItemsServiceAdapter: ItemsService { // You can have separate adapters if the logic starts to diverge
+    let api: TransfersAPI
+//    let longDateStyle: Bool
+    let fromSentTransfersScreen: Bool
+
+    let select: (Transfer) -> Void
+    
+    func loadItems(completion: @escaping (Result<[ItemViewModel], Error>) -> Void) {
+        api.loadTransfers { result in
+            DispatchQueue.mainAsyncIfNeeded {
+                completion(result.map { items in
+                    
+                    items.filter { fromSentTransfersScreen ? $0.isSender : !$0.isSender}
+                    .map { item in
+                        ItemViewModel(transfer: item, longDateStyle: fromSentTransfersScreen) {
                             select(item)
                         }
                     }
